@@ -783,45 +783,46 @@ async def sendvps(interaction: discord.Interaction, userid: str):
             color=0xffcc00
         ), ephemeral=True)
 @bot.tree.command(name="ip4vps", description="Create a real IPv4 VPS (Admins only).")
-@app_commands.describe(ram="Amount of RAM (e.g., 4G, 8G, 16G)", core="Number of CPU cores (e.g., 2, 4, 8)")
-async def ip4vps(interaction: discord.Interaction, ram: str, core: int):
+@app_commands.describe(ram="Amount of RAM (Fixed: 8G)", core="Number of CPU cores (Fixed: 2)", port="Custom SSH Port", dockername="Custom Docker Container Name")
+async def ip4vps(interaction: discord.Interaction, ram: str, core: int, port: int, dockername: str):
     admin_ids = {"1119657947434332211", "1085944828883369984"}
     user_id = str(interaction.user.id)
 
     if user_id not in admin_ids:
         await interaction.response.send_message(embed=discord.Embed(
             title="❌ Access Denied",
-            description="This command is for **admins only**.",
+            description="Only **admins** can create an IPv4 VPS.",
             color=0xff0000
         ), ephemeral=True)
         return
 
     await interaction.response.send_message(embed=discord.Embed(
         title="🚀 Deploying IPv4 VPS...",
-        description=f"Creating VPS with **{ram} RAM** & **{core} Cores**...",
+        description=f"Creating VPS with **{ram} RAM**, **{core} Cores**, **Port {port}**, **Docker Name: {dockername}**...",
         color=0x00ff00
     ))
 
-    container_name = f"ipv4vps_{user_id}"
-    ssh_port = "2222"  # Change if needed
     ssh_ip = "your-vps-ip"  # Replace with your actual VPS IP
+
+    # Ensure no conflicting containers exist
+    subprocess.run(["docker", "rm", "-f", dockername], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     try:
         # Create the Docker container with SSH access
         container_id = subprocess.check_output([
             "docker", "run", "-itd", "--privileged",
-            "-p", f"{ssh_port}:22",  # Expose SSH port
-            "--memory", ram, "--cpus", str(core),
+            "-p", f"{port}:22",  # Expose SSH port
+            "--memory", "8G", "--cpus", "2",
             "--hostname", "ipv4-vps",
-            "--name", container_name, "--cap-add=ALL",
+            "--name", dockername, "--cap-add=ALL",
             "ubuntu:22.04"
         ]).strip().decode('utf-8')
 
         # Install & start SSH in the container
-        subprocess.run(["docker", "exec", container_name, "bash", "-c",
+        subprocess.run(["docker", "exec", dockername, "bash", "-c",
                         "apt update && apt install -y openssh-server && service ssh start && echo 'root:password' | chpasswd"])
 
-        ssh_command = f"ssh root@{ssh_ip} -p {ssh_port}"
+        ssh_command = f"ssh root@{ssh_ip} -p {port}"
 
         # Send DM to admin with VPS details
         await interaction.user.send(embed=discord.Embed(
@@ -829,8 +830,9 @@ async def ip4vps(interaction: discord.Interaction, ram: str, core: int):
             description="Your real IPv4 VPS has been successfully deployed.",
             color=0x00ff00
         ).add_field(name="🖥️ SSH Access:", value=f"```{ssh_command}```", inline=False)
-         .add_field(name="🔹 RAM:", value=f"**{ram}**", inline=True)
-         .add_field(name="🔹 CPU:", value=f"**{core} Cores**", inline=True)
+         .add_field(name="🔹 RAM:", value="**8G**", inline=True)
+         .add_field(name="🔹 CPU:", value="**2 Cores**", inline=True)
+         .add_field(name="📌 Docker Name:", value=f"**{dockername}**", inline=False)
          .set_footer(text="🚀 Use this SSH command to access your VPS."))
 
         await interaction.followup.send(embed=discord.Embed(
